@@ -1,0 +1,35 @@
+# 环境配置文件
+.env
+.env.local
+.env.production
+
+# 备份文件
+output/
+*.sql
+*.sql.gz
+*.tar.gz
+
+# 日志文件
+*.log
+logs/
+
+# 临时文件
+*.tmp
+*.temp
+temp_*
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# IDE文件
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Docker相关
+.dockerignore
+
+# 数据卷
+mysql_data/
