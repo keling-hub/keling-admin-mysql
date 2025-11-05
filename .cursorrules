@@ -1,0 +1,605 @@
+# 科凌管理系统 (Keling Admin System)
+
+## 项目概述
+这是一个完整的企业级管理系统，名为"科凌管理系统"，采用前后端分离架构，包含三个独立的子项目。
+
+## 项目结构
+```
+project/
+├── keling-admin-front/    # 前端项目 (Vue 3 + TypeScript + Vite)
+├── keling-admin-back/     # 后端项目 (Django + DRF)
+└── keling-admin-mysql/    # 数据库项目 (MySQL + Docker)
+```
+
+## 子项目详情
+
+### 1. keling-admin-front (前端项目)
+- **技术栈**: Vue 3.5.13 + TypeScript 5.8.3 + Vite 6.3.3 + Element Plus 2.9.8
+- **状态管理**: Pinia 3.0.2
+- **路由管理**: Vue Router 4.5.0
+- **包管理器**: pnpm (强制使用)
+- **GitHub 仓库**: https://github.com/keling-hub/keling-admin-front.git
+- **主要功能**:
+  - 用户管理界面
+  - KPI 数据展示
+  - 办公管理模块
+  - 人员管理模块
+  - 管道管理模块
+  - 文件管理功能
+- **开发规范**:
+  - 使用 ESLint + Prettier + StyleLint
+  - 提交信息使用 Commitlint 规范
+  - 使用 Husky 进行 Git hooks 管理
+  - 支持 TypeScript 类型检查
+
+### 2. keling-admin-back (后端项目)
+- **技术栈**: Django + Django REST Framework
+- **数据库**: MySQL
+- **GitHub 仓库**: https://github.com/keling-hub/keling-admin-back.git
+- **主要功能**:
+  - RESTful API 接口
+  - 用户认证与权限管理
+  - 数据模型定义
+  - 业务逻辑处理
+  - 文件上传下载
+- **开发规范**:
+  - 遵循 Django 最佳实践
+  - API 接口使用 DRF 规范
+  - 代码注释完整
+  - 异常处理完善
+
+### 3. keling-admin-mysql (数据库项目)
+- **技术栈**: MySQL + Docker + Docker Compose
+- **GitHub 仓库**: https://github.com/keling-hub/keling-admin-mysql.git
+- **主要功能**:
+  - MySQL 数据库配置
+  - Docker 容器化部署
+  - 数据备份与恢复
+  - 数据库初始化脚本
+- **开发规范**:
+  - 使用 Docker 进行环境隔离
+  - 提供完整的备份恢复方案
+  - 配置文件模板化
+
+## 开发规范
+
+### 通用规范
+1. **代码风格**: 每个子项目都有独立的代码规范配置
+2. **版本控制**: 每个子项目都是独立的 Git 仓库
+3. **依赖管理**: 前端使用 pnpm，后端使用 pip
+4. **文档**: 每个子项目都有独立的 README 文档
+
+### 提交规范
+- **前端**: 使用 Commitlint 规范，格式为 `type(scope): description`
+- **后端**: 使用语义化提交信息
+- **数据库**: 使用描述性提交信息
+
+### 部署规范
+- **前端**: 支持 Docker 部署，使用 Nginx 作为 Web 服务器
+- **后端**: 支持 Docker 部署，使用 Gunicorn 作为 WSGI 服务器
+- **数据库**: 使用 Docker Compose 进行容器编排
+
+## 注意事项
+1. 三个子项目完全独立，各自维护自己的依赖和配置
+2. 前端项目使用 pnpm 作为包管理器，不要使用 npm 或 yarn
+3. 后端项目使用 Python 虚拟环境管理依赖
+4. 数据库项目提供完整的 Docker 化部署方案
+5. 所有项目都遵循各自的技术栈最佳实践
+
+## 后端接口外键字段约定（同名外键）
+
+为统一前后端对接约定，后端（Django + DRF）对外键字段采用“同名读写”规则：
+
+- 读取（后端返回给前端）
+  - 外键字段统一为「引用表名 + _id」，例如：`o302_id`、`o303_id`、`s104_id`、`s301_id`，值为 UUID。
+  - 可选返回只读展示字段，用于直观显示名称/颜色等，例如：`o302_id_name`、`o303_id_name`、`s104_id_name`、`s301_id_name`。
+
+- 写入（前端提交到后端）
+  - 直接提交同名外键字段：`<表名>_id: <UUID>`，例如：`o302_id/s104_id/s301_id`。
+  - 注意：提交的 UUID 必须在对应表中存在，否则后端会返回 400，并指向具体外键字段。
+
+- 示例（制度建设 o301 创建）：
+  - POST `/api/office/o301/`
+  - Body：
+    - `o30102`: "制度名称"
+    - `o30103`: 0|1|2
+    - `o302_id`: "<制度类型ID>"
+    - `o303_id`: "<制度进度ID>"
+    - `s104_id`: "<部门ID>"（可选，未提供则默认当前用户部门）
+    - `s301_id`: "<文件节点ID>"（必填）
+
+- 读取返回字段命名示例（o301）：
+  - 基础外键字段：`o302_id`、`o303_id`、`s104_id`、`s301_id`
+  - 展示只读字段：`o302_id_name`、`o303_id_name`、`s104_id_name`、`s301_id_name`
+
+- 前端对接提示：
+  - 列表/详情页读取使用 `o302_id`、`o303_id`、`s104_id`、`s301_id` 等；
+  - 创建/更新提交也使用同名外键 `o302_id/o303_id/s104_id/s301_id`；
+  - 若收到 400：优先检查各 `<表名>_id` 对应的 UUID 是否有效或是否缺失必填项。
+
+## 前后端对接总览（必须遵循）
+
+### 后端要点汇总（keling-admin-back）
+- **技术栈**: Django + DRF + MySQL + SimpleJWT
+- **统一配置**:
+  - 认证类：JWT（SimpleJWT）
+  - 权限类：`IsAuthenticated` + 自定义 `ActiveAndPermission`（用户需激活，且当权限码存在于菜单/权限表时才做权限校验；权限码不存在时默认放行）
+  - 过滤器：`django_filters`
+  - 异常处理：统一异常处理器
+- **跨域**: `.env` 可配置 `CORS_ALLOWED_ORIGINS` 与 `CSRF_TRUSTED_ORIGINS`
+- **JWT 生命周期（默认）**:
+  - `ACCESS_TOKEN_LIFETIME`：小时级（默认 2h，可通过 `.env` 配置）
+  - `REFRESH_TOKEN_LIFETIME`：天级（默认 7d，可通过 `.env` 配置）
+- **URL 挂载一览（均为 RESTful）**：
+  - `/api/user/`（用户）
+  - `/api/system/`（系统：角色、权限、菜单、部门）
+  - `/api/monitor/`（监控）
+  - `/api/pipeline/`（管道）
+  - `/api/file/`（文件）
+  - `/api/people/`（人员）
+  - `/api/office/`（办公）
+  - `/api/kpi/`（阿米巴考核）
+  - `/api/data/`（数据）
+  - `/api/token/refresh/`（JWT 刷新）
+
+### 前端要点汇总（keling-admin-front）
+- **HTTP 封装**：`src/utils/http/index.ts` 基于 Axios
+  - `baseURL`：开发环境为空（走本地代理/Nginx），生产读取 `VITE_API_DOMAIN`
+  - 请求白名单（不注入 Token）：`/api/user/login/`、`/api/token/refresh/`
+  - Token 注入：在拦截器中添加 `Authorization: Bearer <accessToken>`
+  - Token 过期自动刷新：调用 `useUserStoreHook().handRefreshToken`
+  - 表单上传：自动移除默认 `Content-Type` 以便浏览器设置 multipart 边界
+- **登录/刷新**：`src/api/user.ts` + `src/store/modules/user.ts`
+  - 登录：`POST /api/user/login/`，兼容 `email/username` → 后端期望 `s11104 + password`
+  - 刷新：`POST /api/token/refresh/`，兼容 SimpleJWT 默认 `{ access: "..." }` 或统一返回 `{ success,data:{ accessToken,refreshToken,expires } }`
+- **模块 API 组织**：`src/api/*.ts` 使用 `createCrudApiWithErrorHandling` 生成 CRUD，与后端 `apps/*/urls.py` 一一对应
+
+### 模块与路由对照（示例）
+- 用户：`/api/user/`
+- 系统：`/api/system/`
+- 办公：`/api/office/`（如 `o301/o302/o303/o221/o222/o231` 等）
+- 人员：`/api/people/`
+- 文件：`/api/file/`
+- KPI：`/api/kpi/`
+- 管道：`/api/pipeline/`
+- 数据：`/api/data/`
+- 令牌刷新：`/api/token/refresh/`
+
+### 对接注意事项（强制）
+- **外键提交规则**：读取与写入均使用同名 `*_id` 字段（详见“同名外键”章节）。
+- **Token 携带**：除登录/刷新接口外，其余请求都应自动携带 `Authorization: Bearer <accessToken>`（由拦截器完成）。
+- **权限放行策略**：后端仅当权限码存在于菜单/权限表且启用时才校验；若权限码不存在则默认放行（便于灰度迭代）。
+- **环境变量**：
+  - 前端生产需配置 `VITE_API_DOMAIN` 指向后端域名（如 `https://api.example.com`）。
+  - 后端 `.env` 需正确配置 `SECRET_KEY/DB_*`/CORS 等项；`USE_REDIS=true` 可启用权限缓存。
+- **常见 400 错误排查**：优先检查各 `*_id` 字段是否缺失或 UUID 无效，或业务必填项是否遗漏。
+- **部门过滤（范围）**：后台部分列表按部门范围过滤；如需“无范围”操作，前端可按约定传递 `unscoped=true`（示例：删除或 PATCH 特例）。
+
+### 鉴权与权限体系（Auth & RBAC）
+
+#### 后端鉴权（keling-admin-back）
+- **认证机制**：基于 SimpleJWT 的 Bearer Token
+  - 登录：`POST /api/user/login/` → 返回 `accessToken / refreshToken / expires / roles / permissions`
+  - 刷新：`POST /api/token/refresh/`（支持 SimpleJWT 原生 `{ access: "..." }` 或统一封装返回）
+- **DRF 默认配置**：
+  - `DEFAULT_AUTHENTICATION_CLASSES`: `rest_framework_simplejwt.authentication.JWTAuthentication`
+  - `DEFAULT_PERMISSION_CLASSES`: `IsAuthenticated` + `utils.permissions.ActiveAndPermission`
+- **权限判定（ActiveAndPermission）**：
+  - 先判用户激活；再解析视图/请求映射的权限码（方法映射 `GET: :read`，`POST: :add`，`PUT/PATCH: :change`，`DELETE: :delete`）。
+  - 当权限码在菜单/权限表（`s102`）中“存在且启用”时才进行用户权限校验；若权限码“不存在”，默认放行（便于灰度与过渡）。
+  - 支持 `USE_REDIS=true` 时的权限缓存与用户权限缓存，加速判定。
+- **路由保护范围**：除登录/刷新等白名单，其余 `/api/**` 路径默认均需认证 + 权限判定。
+
+#### 前端鉴权（keling-admin-front）
+- **令牌获取与存储**：
+  - 通过 `src/api/user.ts` 的 `s111Login` 获取登录响应；`src/store/modules/user.ts` 中 `loginByEmail` 成功后 `setToken` 写入本地（含 `accessToken/refreshToken/expires`）。
+- **请求拦截与自动注入**（`src/utils/http/index.ts`）：
+  - 请求白名单：`/api/user/login/`、`/api/token/refresh/` 不注入 Token。
+  - 非白名单：自动在请求头注入 `Authorization: Bearer <accessToken>`。
+  - 过期自动刷新：若 `expires` 过期，自动调用 `useUserStoreHook().handRefreshToken` 刷新后重放原请求。
+  - 表单上传：自动移除默认 `Content-Type`，让浏览器设置 multipart 边界。
+- **权限控制（页面/按钮级）**：
+  - 页面级：结合路由 `meta` 与用户 `roles` 进行访问控制（参见 `store/modules/permission.ts` 与路由守卫）。
+  - 按钮级：基于用户 `permissions` 的组件/指令（如 `components/RePerms`、`directives/perms`、`directives/auth`）在前端做显隐控制。
+  - 约定：后端仅当权限码在菜单/权限表存在且启用时才严格校验；前端可按需使用相同权限码进行 UI 级别控制，保持一致性。
+- **登出与失效处理**：
+  - 前端登出 `logOut()` 会清空 `roles/permissions/token`，重置路由与标签，并跳转 `/login`。
+  - 刷新失败或 401/403 等场景触发失效提示并清理令牌后跳转登录。
+
+#### 常见鉴权问题排查
+- 接口 401：检查是否为白名单接口；若非白名单，确认是否正确注入 `Authorization`、Token 是否过期且刷新逻辑是否成功。
+- 接口 403：后端权限校验未通过。优先确认该接口映射的权限码是否“已存在且启用”；若不存在则按策略默认放行，应无 403（除非视图强制自定义权限）。
+- 按钮不显示：前端 `permissions` 未包含对应权限码或路由 `meta` 不匹配；检查登录返回数据、Pinia 状态以及组件/指令的权限码写法。
+- 刷新异常导致死循环：确认白名单包含 `/api/token/refresh/` 与 `/api/user/login/`；并确保刷新失败分支能正确 `removeToken()` 与跳转登录。
+
+## 前端通用规范（keling-admin-front）
+
+### 架构与目录
+- 技术栈：Vue 3 + TypeScript + Vite + Element Plus + Pinia + Vue Router
+- 主要目录：
+  - `src/api`（接口分模块管理）
+  - `src/utils`（HTTP、CRUD 工厂、消息、下载、树、sso 等）
+  - `src/store`（Pinia 模块：user/permission/app 等）
+  - `src/router`（路由与守卫、模块化路由）
+  - `src/components`（通用组件，如 RePerms/ReDialog/ReFileUpload 等）
+  - `src/plugins`（elementPlus/i18n/echarts 初始化）
+  - `src/style`（全局样式、暗黑、Element Plus 覆盖、Tailwind）
+
+### HTTP 与鉴权
+- HTTP 封装：`src/utils/http/index.ts`
+  - baseURL：开发为空，生产读取 `VITE_API_DOMAIN`
+  - 白名单：`/api/user/login/`、`/api/token/refresh/`（不注入 Token，不触发刷新）
+  - Token 注入：非白名单自动附加 `Authorization: Bearer <accessToken>`
+  - 过期自动刷新：调用 `useUserStoreHook().handRefreshToken`，成功后重放原请求
+  - 表单上传：FormData 自动移除默认 `Content-Type`
+  - 进度：内置 NProgress 启停
+- 登录与刷新：`src/api/user.ts` + `src/store/modules/user.ts`
+  - 登录：兼容 `email/username` → 后端期望 `s11104 + password`
+  - 刷新：兼容 SimpleJWT `{ access: "..." }` 与 `{ success,data:{ accessToken,refreshToken,expires } }`
+- 失效处理：刷新失败或 401/403 清理令牌并跳转 `/login`
+
+### 权限（页面/按钮级）
+- 页面级：路由 `meta` + 用户 `roles` 控制访问
+- 按钮级：`components/RePerms`、`directives/perms`、`directives/auth` 基于 `permissions` 显隐
+- 与后端策略一致：权限码在后端菜单/权限表存在且启用时严格校验；不存在默认放行，前端可按需做 UI 控制
+
+### API 组织与 CRUD 工厂
+- 模块接口：`src/api/*.ts` 与后端 `/api/<module>/` 一一对应（user/system/office/people/file/kpi/pipeline/data/monitor）
+- 通用 CRUD：`createCrudApiWithErrorHandling` 生成 `getList/getOne/create/update/patch/delete`
+- 特例：需要无范围操作时按约定传 `unscoped=true`（如删除/patch）
+
+### 外键读写对接
+- 读取：使用 `*_id`；展示字段统一 `*_id_name`（直观对齐外键）
+- 写入：提交同名 `*_id`；例如 `o302_id/o303_id/s104_id/s301_id`
+- 过滤：按读取字段名（如 `?s104_id=<uuid>`）
+
+### 路由与导航
+- 路由：`src/router/index.ts` + `src/router/modules/*` 模块化维护
+- 守卫：基于 Token/角色的访问控制与动态路由（如有）
+- 多页签：结合 `store/modules/multiTags` 和布局组件
+
+### 视图页面规范（src/views）
+- 基本结构：每个页面目录下采用“入口 + 组件拆分”的形式。
+  - 入口文件：`index.vue`（页面主容器与布局、数据获取与状态组织、组合各子组件）。
+  - 组件目录：`components/`（子组件按功能拆分放置，例如表格卡片、表单对话框、筛选栏、统计卡等）。
+  - 大量计算：如有较多/复杂的计算或数据整形，集中在同级 `data.js`（或 `data.ts`）中导出纯函数，`index.vue` 中按需引入，避免在组件内堆叠计算逻辑。
+- 推荐实践：
+  - 入口职责清晰：`index.vue` 负责页面级状态与装配，不内联复杂计算与超长方法。
+  - 子组件职责单一：通过 `props/emits` 与入口解耦，避免跨组件强耦合。
+  - 计算集中：数据映射、聚合、指标计算、列配置生成等放在 `data.js/ts`；函数保持纯净、可测试。
+  - 命名规范：
+    - 组件文件以业务语义命名（如 `OrderTableCard.vue`、`UploadDialog.vue`）。
+    - 入口统一 `index.vue`；计算文件统一 `data.js`（或 `data.ts`，优先 TypeScript）。
+  - 类型与可维护性：如使用 TS，给 `props/emit/计算函数` 补充类型；避免在模板中直接书写复杂表达式。
+
+### 环境与构建
+- 包管理：pnpm（强制）
+- 环境变量：生产需设置 `VITE_API_DOMAIN` 指向后端域名
+- 构建配置：`vite.config.ts` + `build/*`（插件、优化、压缩、CDN）
+- Docker 与部署：`Dockerfile`、`Dockerfile.prod`、`nginx.conf`
+
+### 公共工具（utils）
+- `useFileTransfer.ts`（文件传输 + Excel 适配）
+  - 文件中心能力：
+    - `uploadFile`/`uploadFileWithRetry`：单文件上传（校验文件名≤50、类型、大小；进度/取消；指数退避重试）
+    - `downloadFile`：按文件ID下载（blob）
+    - `uploadFiles`/`downloadFiles`：批量（默认并发3），逐个回调进度/完成状态
+    - `buildAuthHeaders`：从本地 token 构建鉴权头
+    - 错误处理：`isRetryableError`、`getErrorMessage`、`getErrorMessageAsync`（支持 blob 错误体解析，优先展示后端 msg）
+  - Excel 适配：
+    - `uploadToEndpoint`：向任意端点 POST FormData(file, extra)
+    - `uploadExcelFile`：仅 .xls/.xlsx；不合规直接阻断
+    - `downloadFromEndpoint`：从任意端点（GET/POST）下载 blob，支持下载进度/取消
+  - 规范：
+    - 表单上传由 HTTP 封装自动移除默认 `Content-Type`
+    - 大批量建议配置 `maxConcurrent`，并对失败项显示解析后的后端 `msg`
+- `useUserInfo.ts`（本地用户信息访问聚合）
+  - 完整能力：
+    - 状态：`userInfo/loading/error`
+    - 计算：`deptInfo/deptId/deptName/userId/username/roles/permissions`
+    - 方法：`loadUserInfo/getUserDept(Id|Name)/getUser(Id|name|Roles|Permissions)/hasRole/hasPermission/hasDeptInfo`
+    - ID 兼容：尝试 `id/s111_id/user_id`
+  - 精简封装：
+    - `useUserDept()`：仅部门信息（含 `refreshUserInfo`）
+    - `useUserBasic()`：仅基础用户信息（含 `refreshUserInfo`）
+  - 规范：
+    - 数据来源于 `storageLocal().getItem(userKey)`；与登录成功后 `setToken`/本地缓存保持一致
+    - 仅做读取与计算，不直接发起网络请求；网络更新走登录/刷新流程
+
+### 通用组件（components）
+- 强制使用规范：
+  - 全项目的文件上传必须统一使用 `components/ReFileUpload`；禁止各处自行封装或直接调用底层 `http` 上传（除非该组件明确不适用的极特殊场景，且需在 PR 中说明）。
+  - 全项目的文件下载必须统一使用 `components/ReFileDownload`；批量/端点下载也遵循该组件与 `useFileTransfer` 的统一错误处理与并发策略。
+  - 如需新增业务特化能力，应在组件内以可选 Props/事件扩展，保持 API 的向后兼容与统一交互体验。
+  - 表单/进度/取消/错误提示等交互需复用组件内置逻辑，确保一致的用户体验与统一的错误文案。
+
+- `ReFileUpload`（文件上传组件）
+  - 功能：封装文件中心上传能力，集成选择、校验、进度、取消、批量与重试策略；可对接业务端点（Excel 导入）。
+  - 依赖：内部使用 `useFileTransfer` 与 `fileApi`；表单上传自动移除默认 `Content-Type`。
+  - 常用 Props（建议）：
+    - `accept?: string | string[]`：允许的文件类型（优先业务传入；未传则走全局文件中心白名单）。
+    - `maxSize?: number`：大小上限（字节）；未传按全局 `uploadConfig.maxFileSize`。
+    - `multiple?: boolean`：是否多选。
+    - `parentId?: string | null`：父目录 ID（上传到文件中心目录树时使用）。
+    - `concurrency?: number`：批量并发（默认 3）。
+    - `endpoint?: string`：自定义上传端点（如 Excel 导入）；若提供则走 `uploadToEndpoint`，否则走文件中心 `uploadFile`/`uploadFiles`。
+    - `extra?: Record<string, any>`：上传附加字段，仅在 `endpoint` 模式下生效。
+    - `auto?: boolean`：选择后自动上传（默认 true）。
+    - `disabled?: boolean`。
+  - 事件（建议）：
+    - `on-progress(fileIndex: number, percent: number)`：进度回调（批量逐个回调）。
+    - `on-success(payload)`：成功回调（返回后端响应/文件信息）。
+    - `on-error(error)`：失败回调（已做友好消息提取）。
+    - `on-complete(summary)`：批量完成汇总（成功/失败数）。
+  - 校验策略：
+    - 名称≤50、类型受限、大小受限；不通过则阻断并提示。
+    - Excel 模式强制仅 `.xls/.xlsx`。
+  - 重试策略：
+    - 提供 `uploadFileWithRetry`（指数退避 1s/2s/4s，封顶 5s，可配置次数）；仅对网络/5xx/超时生效。
+  - 使用规范：
+    - 大批量设置 `concurrency`，并通过 `on-progress/on-complete` 做用户反馈。
+    - 统一错误解析优先展示后端 `msg`；如为 blob 错误体，会自动解析文本。
+
+- `ReFileDownload`（文件下载组件）
+  - 功能：封装文件中心/任意端点下载能力，支持 blob 保存、文件名控制、下载进度、批量下载。
+  - 依赖：内部使用 `useFileTransfer.downloadFile` 与 `downloadFromEndpoint`，统一错误提示。
+  - 常用 Props（建议）：
+    - `fileId?: string`：文件中心下载 ID（与文件中心配套）。
+    - `filename?: string`：保存名（未传降级为 `download` 或端点默认）。
+    - `url?: string`、`method?: 'get'|'post'`、`params?: any`、`data?: any`：任意端点下载配置。
+    - `fileIds?: string[]`、`filenames?: string[]`：批量下载列表。
+    - `concurrency?: number`：批量并发（默认 3）。
+    - `disabled?: boolean`。
+  - 事件（建议）：
+    - `on-progress(index: number)`：批量下载逐个完成的进度通知。
+    - `on-file-complete(index: number, success: boolean)`：单个文件完成回调。
+    - `on-complete(summary)`：汇总结果（成功/失败列表）。
+    - `on-error(error)`：错误回调（已做 blob/JSON 解析）。
+  - 使用规范：
+    - 端点下载时会自动以 `responseType: 'blob'` 请求并触发浏览器保存。
+    - 建议批量下载控制并发并提供进度反馈；错误优先展示后端 `msg`。
+
+## 后端结构与开发规范（keling-admin-back）
+
+### 目录结构总览
+```
+keling-admin-back/
+├── apps/                    # 业务模块目录
+│   ├── user/ system/ data/ file/ people/ office/ kpi/ pipeline/ monitor/
+│   │   ├── models.py        # 数据模型定义（UUID 主键，外键列名统一 *_id）
+│   │   ├── serializers.py   # DRF 序列化器：同名外键 *_id 读写 + 展示 *_name
+│   │   ├── views.py         # 视图集：继承自自定义 ViewSet，增删改查、权限、过滤
+│   │   ├── filters.py       # django-filters 过滤器：等值/模糊/范围查询
+│   │   ├── urls.py          # 路由配置：注册 ViewSet、功能型接口
+│   │   ├── admin.py         # Django 管理后台注册
+│   │   ├── apps.py          # Django App 配置
+│   │   └── migrations/      # 迁移文件
+├── puredrf/
+│   ├── settings.py          # 全局配置（数据库/JWT/权限/中间件/日志/CORS）
+│   └── urls.py              # 顶层路由（/api/* 子路由挂载、token 刷新、健康检查）
+├── utils/                   # 基础工具与框架增强（见下文 utils 小节）
+├── static/ media/ logs/     # 静态资源、上传文件、日志
+└── docker-compose.yml ...   # 部署相关
+```
+
+### App 开发规范与职责划分
+- **models.py（必须）**：
+  - 使用 `UuidModel, BaseModel` 提供 `id/create_time/update_time` 等通用字段；
+  - 外键字段统一命名为 `<表名>_id = models.ForeignKey(..., db_column='<表名>_id')`；
+  - `on_delete` 根据业务选择 `PROTECT/SET_NULL/CASCADE` 并与可空性一致；
+  - `Meta.db_table` 与业务编号规范一致（如 `o301`、`s104`）。
+ - **serializers.py（必须）**：
+  - 读：返回 `*_id` 与展示字段 `*_id_name`；
+  - 写：同名 `*_id` 使用 `serializers.PrimaryKeyRelatedField(queryset=...)` 直接读写（不要使用 `UUIDField` 做外键写入）。
+  - 必要时在 `validate/create/update` 中做补充校验或字段转换；
+  - 默认 `fields = "__all__"`，谨慎暴露敏感字段。
+  - 注意（避免 NameError 导致服务启动失败）：外键关联模型（如 apps.system.models.s104 / apps.file.models.s301 / apps.data.models.d001）必须在序列化器类定义之前导入并置于文件顶部；不要在类后或函数内延迟导入，否则可能出现 NameError。
+  - 推荐导入顺序：标准库 → 第三方库 → 当前 app 的 .models → 其他 app 的模型（如 apps.system.models）。
+- **filters.py（推荐）**：
+  - 采用 `django_filters.rest_framework.FilterSet`；
+  - 提供常用等值、模糊、区间过滤；
+  - 外键字段按读取名 `*_id` 过滤（如 `s104_id`）。
+- **views.py（必须）**：
+  - 继承自 `utils.viewset.CustomModelViewSet`（已集成分页、标准响应、权限钩子）；
+  - 配置 `queryset / serializer_class / filterset_class / pagination_class`；
+  - 若有功能接口（如导入导出、统计），使用 `@action` 或单独 APIView，实现前置权限码 `permission_code`；
+  - 支持按部门范围过滤的场景，保留 `?unscoped=true` 特例（谨慎对外开放）。
+- **urls.py（必须）**：
+  - 使用 DRF Router 注册标准 CRUD 路由；
+  - 额外功能端点明确 method 与权限码；
+  - 与顶层 `puredrf/urls.py` 一一对应到模块前缀。
+- **admin.py / apps.py / migrations/**：
+  - 管理后台简要注册模型；
+  - AppConfig 使用默认；
+  - 迁移文件规范提交，避免大字段混杂。
+
+### 新建 App 的步骤（标准流程）
+1. 创建应用：`python manage.py startapp <module>`（建议小写业务代号，如 `office`）。
+2. 注册应用：`puredrf/settings.py` 中 `INSTALLED_APPS` 增加 `apps.<module>`。
+3. 建模：在 `apps/<module>/models.py` 定义模型，遵守外键命名与 `db_table` 规范；
+4. 迁移：`python manage.py makemigrations && python manage.py migrate`；
+5. 序列化：在 `serializers.py` 实现“读写同名 *_id + 展示 *_id_name”的序列化器；
+6. 过滤器：在 `filters.py` 定义查询过滤；
+7. 视图：在 `views.py` 基于 `CustomModelViewSet` 实现 CRUD/功能接口，并设置 `permission_code`（如有）；
+8. 路由：在 `urls.py` 注册路由（Router + 额外 action）；
+9. 顶层挂载：确认 `puredrf/urls.py` 已包含 `path("api/<module>/", include("apps.<module>.urls"))`；
+10. 测试与文档：编写最小化用例与接口说明，确保与前端字段契约一致。
+
+### 统一编码规范（后端）
+- 命名：
+  - 表：业务编号命名（`o301`、`s104`、`k201` 等）；
+  - 字段：遵循编号 + 序号（如 `o30102`）、外键严格使用 `<表名>_id`；
+  - 权限码：使用模块路由 + 方法后缀（`:read/:add/:change/:delete`）或明确自定义码。
+- 序列化契约：
+  - 读写：同名 `*_id` + `*_id_name`；
+  - 校验失败返回字段级错误，指向具体 `*_id`。
+- 分页：统一 `utils.pagination.CustomPageNumberPagination`（如项目中已集成）；
+- 响应：统一 `utils.response` 的标准结构 `{ success, data, msg, total, page, limit }`；
+- 权限：
+  - 全局 `IsAuthenticated + ActiveAndPermission`；
+  - 权限码存在且启用才校验，不存在默认放行；
+  - 支持 `USE_REDIS` 缓存权限与用户权限集合。
+
+### utils 基础工具说明
+- `utils.models`
+  - `UuidModel`：抽象基类，提供 UUID 主键字段 `id: UUIDField(primary_key=True, default=uuid7|uuid4)`；优先 UUIDv7，不可用时回退 UUIDv4；不创建表（`abstract=True`）。
+  - `BaseModel`：抽象基类，提供时间字段 `create_time(auto_now_add)`、`update_time(auto_now)`；默认排序 `ordering=['-create_time']`；不创建表（`abstract=True`）。
+  - 使用要求：业务模型应继承 `UuidModel, BaseModel`，并在外键上使用 `db_column='<表名>_id'`（严禁 `*_id_id`）。
+- `utils.viewset.CustomModelViewSet`
+  - 基于 DRF ModelViewSet 扩展，内置：标准分页、统一响应封装、常见异常处理钩子、权限码映射支持（`permission_code`）。
+- `utils.response`
+  - 提供 `SuccessResponse/ErrorResponse` 等统一响应；
+  - 统一数据结构字段，便于前端 `http` 封装直接透传 `data`。
+- `utils.pagination`
+  - 自定义分页器，统一 `page/limit/total` 字段与默认页大小；
+  - 统一负数/越界处理策略，避免异常。
+- `utils.permissions.ActiveAndPermission`
+  - 自定义权限类：激活校验 + 权限码存在才校验用户权限；
+  - 支持 Redis 缓存 `all_permissions` 与 `user_permissions_<id>`；
+  - 方法→权限后缀映射：`GET→:read`、`POST→:add`、`PUT/PATCH→:change`、`DELETE→:delete`。
+- `utils.authenticator.CustomJWTAuthentication`
+  - 基于 SimpleJWT 扩展：在认证阶段附加用户激活校验与更友好错误信息；
+  - `puredrf/urls.py` 使用 `CustomTokenRefreshView` 支持刷新端点。
+- `utils.exception.CustomExceptionHandler`
+  - 统一异常结构：HTTP/校验/权限/未捕获异常归一化为 `{ success:false, msg, error:{ code,type,message,details } }`；
+  - 日志联动，必要字段打点。
+- `utils.middleware.ApiLoggingMiddleware`
+  - 接口访问日志（可通过环境变量开关与方法白名单）；
+  - 过滤健康检查等无意义噪声；
+  - 输出 JSON 格式日志，便于采集。
+- `utils.login_rate_limit.LoginRateLimitMiddleware`
+  - 登录限流：窗口、最大次数、是否按 IP 统计均可通过 `.env` 配置；
+  - 建议仅对登录/敏感接口开启。
+- 其他工具：`file_utils/excel_utils/request_util/logsFormat/password_validators`
+  - 文件与表格处理、请求辅助、日志 JSON 格式化、自定义口令长度校验等。
+
+### 统一示例：o301（制度建设）
+- 模型关键外键：`o302_id`（类型，必填/PROTECT）、`o303_id`（进度，必填/PROTECT）、`s104_id`（部门，可空/SET_NULL）、`s301_id`（文件聚合，必填/PROTECT）。
+- 序列化：
+  - 读：`o302_id/o303_id/s104_id/s301_id` + `o302_id_name/o303_id_name/s104_id_name/s301_id_name`；
+  - 写：同名 `o302_id/o303_id/s104_id/s301_id`。
+- 过滤：支持 `?s104_id=...` 等；
+- 权限：按路由与方法映射后缀判定。
+
+### 迁移与同步（MySQL 字段变更）
+- 本机/容器内执行数据库结构更新（参考 `Docker部署说明.md` 7-8 行）：
+  - 生成迁移：`python manage.py makemigrations`
+  - 应用迁移：`python manage.py migrate`
+- Docker 环境示例：
+  - `docker compose exec backend bash` → 进入容器后执行上述两条命令
+- 建议：
+  - 结构变更前先备份数据库；大表变更拆小步；新增字段优先允许 `NULL` 或设默认值；上线后用 `showmigrations` 校验。
+
+## App 通用规范（apps/<module>/）
+
+### 文件职责（通用）
+- `models.py`
+  - 定义业务数据模型与关系；统一使用 UUID 主键；外键字段命名 `<表名>_id` 且 `db_column='<表名>_id'`；
+  - `on_delete` 与可空性一致（`PROTECT/SET_NULL/CASCADE`）。
+- `serializers.py`
+  - 读写：同名 `*_id`；展示只读 `*_id_name`；使用 `PrimaryKeyRelatedField` 作为外键字段。
+  - 在 `validate/create/update` 做补充校验或转换；默认 `fields="__all__"`，谨慎暴露敏感字段。
+- `filters.py`
+  - 基于 `django_filters`；等值/模糊/区间/日期范围；外键按读取态字段过滤（如 `s104_id`）。
+- `views.py`
+  - 继承 `utils.viewset.CustomModelViewSet`；配置 `queryset/serializer/filterset/pagination`；
+  - `@action` 实现功能接口（导入导出/统计等），并声明 `permission_code`（如需）。
+- `urls.py`
+  - 使用 DRF Router 注册标准资源路由；为 `@action` 明确 method 与路径；
+  - 与顶层 `puredrf/urls.py` 前缀一一对应（如 `/api/<module>/`）。
+- `admin.py`
+  - 最小化后台注册，便于排查；隐藏敏感字段。
+- `apps.py`
+  - AppConfig；必要时在 `ready()` 注册信号。
+- `migrations/`
+  - 规范演进；小步提交；避免无关改动混杂。
+- `services.py`
+  - 可选（复杂业务强烈推荐）：抽离计算/批处理/事务/幂等/缓存等核心逻辑。
+- `excel.py`
+  - 可选：导入导出（模板/校验/错误报告/分片/入库策略）。
+- `signals.py`
+  - 可选：联动/缓存失效/索引重建；避免循环触发，必要时加条件判断。
+- `tests.py`
+  - 推荐：关键业务、权限与范围过滤、事务回滚与幂等等用例。
+
+### 命名与字段（通用）
+- 表名：业务编号命名（如 `o301/s104/k201/...`）或清晰业务名，保持一致性。
+- 业务字段：编号+序号（如 `o30102`）；
+- 外键：数据库/模型：`<表名>_id`；读写同名：`*_id`；展示：`*_id_name`。
+- 时间/周期字段：保持命名与格式统一（如 `period: YYYY-MM`）。
+
+### 接口与权限（通用）
+- URL 前缀：`/api/<module>/`；
+- 权限：默认 `IsAuthenticated + ActiveAndPermission`；
+- 权限码映射：按路径 + 方法后缀（`:read/:add/:change/:delete`）；功能型 `@action` 设置 `permission_code`。
+
+### 导入导出与大文件（通用）
+- 导入：
+  - 模板列头固定；类型/范围/必填校验完整；
+  - 支持“仅校验不入库”与“校验通过后入库”两阶段；
+  - 大文件流式处理与分批写入；错误报告到行列。
+- 导出：
+  - 支持过滤条件导出；限制导出数量或分页导出；
+  - 大任务建议后台生成 + 前端轮询下载链接。
+
+### 性能与稳定性（通用）
+- 查询：合理 `select_related/prefetch_related`；仅取必要字段；分页返回。
+- 事务：跨表写入使用事务；失败回滚，保证一致性。
+- 幂等：导入/计算/批处理需可安全重放（结合唯一键/周期/维度等）。
+- 日志/异常：统一 `utils.response` 与异常处理；关键路径打印摘要日志与耗时。
+- 安全：遵循全局鉴权；功能接口限制角色/来源；谨慎暴露字段。
+
+
+### App 必备/可选清单（按 KPI 模块实践）
+
+> 面向所有 `apps/<module>/` 的模块开发，基于 `apps/kpi` 的完整度沉淀。
+
+```
+apps/<module>/
+├── models.py         # 必须：数据模型（UUID 主键；外键 <表名>_id + db_column）
+├── serializers.py    # 必须：DRF 序列化（同名 *_id 读写；展示 *_id_name）
+├── views.py          # 必须：视图集（继承 CustomModelViewSet；权限/分页/过滤）
+├── filters.py        # 推荐：django-filters（等值/模糊/区间；按读取态字段过滤）
+├── urls.py           # 必须：DRF Router + 额外 action（含权限码/方法）
+├── admin.py          # 推荐：最小化后台注册，便于排查
+├── apps.py           # 必须：AppConfig（必要时 ready() 注册信号）
+├── migrations/       # 必须：迁移文件目录，保持规范演进
+│   └── 0001_*.py
+├── services.py       # 可选/强烈推荐：复杂业务（计算/批处理/事务/幂等/缓存）
+├── excel.py          # 可选：导入导出（模板/校验/分片/错误报告/入库策略）
+├── signals.py        # 可选：联动/缓存失效/衍生数据（避免循环和性能问题）
+├── tests.py          # 推荐：关键业务与边界用例（计算正确性/权限/范围/事务）
+└── __init__.py       # 必须：包标识
+```
+
+- 必须（强约束）
+  - `models.py`、`serializers.py`、`views.py`、`urls.py`、`apps.py`、`migrations/`、`__init__.py`
+  - 理由：支撑最小可用 CRUD、鉴权、分页、过滤、挂载路由与迁移。
+
+- 推荐（一般应具备）
+  - `filters.py`：统一过滤体验与参数对齐前端查询。
+  - `admin.py`：便于运维排查/临时录入。
+  - `tests.py`：保障核心逻辑、权限与范围隔离的稳定性。
+
+- 可选（按业务复杂度启用）
+  - `services.py`：抽离复杂计算/批量/幂等/缓存/事务逻辑，避免视图臃肿。
+  - `excel.py`：涉及大体量导入导出时启用，采用“校验→入库”两阶段策略。
+  - `signals.py`：有联动/缓存失效/索引重建等需求时启用，注意防抖与条件保护。
+
+- 统一要求
+  - 外键字段：读写同名 `*_id`，展示 `*_id_name`；过滤按读取字段名。
+  - 视图权限：遵循 `IsAuthenticated + ActiveAndPermission`；功能 action 标注 `permission_code`。
+  - 分页/响应：使用 `utils.pagination` 与 `utils.response` 保持统一结构。
+  - 性能：大查询 `select_related/prefetch_related`；严控 N+1；必要时下移至 `services.py`。
+  - 事务/幂等：跨表写入使用事务；形成天然或显式幂等键（如 指标+周期+维度）。
+
+## 快速开始
+1. 克隆三个独立的仓库到本地
+2. 按照各自项目的 README 文档进行环境配置
+3. 启动数据库服务 (keling-admin-mysql)
+4. 启动后端服务 (keling-admin-back)
+5. 启动前端服务 (keling-admin-front)
+
+## 联系方式
+- 项目维护者: 科凌团队
+- 技术支持: 请查看各子项目的 README 文档

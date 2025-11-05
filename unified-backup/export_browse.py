@@ -29,13 +29,13 @@ def load_tree(conn):
     with conn.cursor() as cur:
         cur.execute(
             """
-            SELECT n.id AS node_id, n.s30102 AS node_type, n.s30104 AS node_name, n.s301_id_id AS parent_id,
+            SELECT n.id AS node_id, n.s30102 AS node_type, n.s30104 AS node_name, n.s301_id AS parent_id,
                    fi.id AS file_info_id, fi.s30304 AS ext,
                    v.s30403 AS version_no, c.s30502 AS content_hash, c.s30504 AS storage_type, c.s30505 AS storage_key
             FROM s301 n
-            LEFT JOIN s303 fi ON fi.s301_id_id = n.id
+            LEFT JOIN s303 fi ON fi.s301_id = n.id
             LEFT JOIN s304 v ON fi.s30302_id = v.id
-            LEFT JOIN s305 c ON v.s305_id_id = c.id
+            LEFT JOIN s305 c ON v.s305_id = c.id
             ORDER BY n.create_time ASC
             """
         )
