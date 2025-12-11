@@ -10,8 +10,10 @@ log "=========================================="
 DB_HOST=${MYSQL_HOST:-keling-mysql}
 DB_PORT=${MYSQL_PORT:-3306}
 DB_NAME=${MYSQL_DATABASE:-kbk}
-DB_USER=${MYSQL_USER:-root}
-DB_PASS=${MYSQL_PASSWORD:-131415}
+# 使用普通用户进行备份（默认 keling）
+DB_USER=${MYSQL_USER:-keling}
+# 优先使用 MYSQL_PASSWORD，如果没有则使用 DB_PASSWORD，最后使用默认值
+DB_PASS=${MYSQL_PASSWORD:-${DB_PASSWORD:-131415}}
 RETENTION_DAYS=${MAX_BACKUPS:-30}
 
 log "备份配置信息:"
@@ -24,6 +26,22 @@ log "  保留天数: $RETENTION_DAYS"
 # 输出目录（避免与只读 /backup 冲突）
 MYSQL_BACKUP_DIR=${MYSQL_BACKUP_DIR:-/data/mysql}
 
+log "=========================================="
+log "备份文件保存位置"
+log "=========================================="
+log "📁 Docker卷（临时存储，只保留当天数据）:"
+log "   容器内路径: $MYSQL_BACKUP_DIR"
+log "   文件格式: YYYY-MM-DD_HHMM.sql"
+log "   示例: 2025-11-08_0000.sql, 2025-11-08_1200.sql"
+log ""
+log "📁 E盘（长期存储，自动同步）:"
+log "   容器内路径: /mnt/e-drive/keling-backup/mysql"
+log "   Windows路径: E:\\keling-backup\\mysql"
+log "   保留策略:"
+log "     - 删除12:00备份（只保留00:00备份）"
+log "     - 最近一个月：保留所有00:00备份"
+log "     - 超过一个月：只保留每月1号00:00备份"
+log "=========================================="
 log "检查备份目录: $MYSQL_BACKUP_DIR"
 
 # 确保目录存在并具有正确权限
@@ -129,6 +147,11 @@ if mysqldump -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" \
         log "  备份文件: $FILE"
         log "  文件大小: $FILE_SIZE 字节 ($(numfmt --to=iec-i --suffix=B $FILE_SIZE 2>/dev/null || echo "未知"))"
         log "  备份耗时: ${BACKUP_DURATION} 秒"
+        log ""
+        log "📂 文件保存位置:"
+        log "   Docker卷: $FILE"
+        log "   E盘（将自动同步）: /mnt/e-drive/keling-backup/mysql/$(basename "$FILE")"
+        log "   Windows路径: E:\\keling-backup\\mysql\\$(basename "$FILE")"
 else
         log "❌ 错误: 移动临时文件失败"
         exit 1

@@ -7,6 +7,17 @@ log "=========================================="
 log "统一备份服务启动"
 log "=========================================="
 
+# 初始化 MySQL 权限（确保备份用户有连接权限）
+log "执行 MySQL 权限初始化..."
+if [ -f "/app/init-mysql-permissions.sh" ]; then
+    /app/init-mysql-permissions.sh || {
+        log "⚠️  警告: MySQL 权限初始化失败，但将继续启动服务"
+        log "如果备份失败，请检查 MySQL 用户权限"
+    }
+else
+    log "⚠️  警告: MySQL 权限初始化脚本不存在"
+fi
+
 # 时区
 TZ="${TZ:-Asia/Shanghai}"
 log "设置时区: $TZ"
@@ -26,8 +37,10 @@ log "=========================================="
 MYSQL_HOST=${MYSQL_HOST:-keling-mysql}
 MYSQL_PORT=${MYSQL_PORT:-3306}
 MYSQL_DATABASE=${MYSQL_DATABASE:-kbk}
-MYSQL_USER=${MYSQL_USER:-root}
-MYSQL_PASSWORD=${MYSQL_PASSWORD:-131415}
+# 使用普通用户进行备份（默认 keling）
+MYSQL_USER=${MYSQL_USER:-keling}
+# 优先使用 MYSQL_PASSWORD，如果没有则使用 DB_PASSWORD，最后使用默认值
+MYSQL_PASSWORD=${MYSQL_PASSWORD:-${DB_PASSWORD:-131415}}
 MAX_BACKUPS=${MAX_BACKUPS:-14}
 
 log "MySQL 配置:"

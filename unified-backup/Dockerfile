@@ -19,9 +19,11 @@ COPY mysql-backup.sh /app/mysql/backup.sh
 COPY media-cleanup.sh /app/media/cleanup.sh
 COPY export_browse.py /app/media/export_browse.py
 COPY sync-to-e-drive.sh /app/sync-to-e-drive.sh
+COPY init-mysql-permissions.sh /app/init-mysql-permissions.sh
+COPY check-e-drive-mount.sh /app/check-e-drive-mount.sh
 
-RUN chmod +x /app/entrypoint.sh /app/mysql/backup.sh /app/media/cleanup.sh /app/sync-to-e-drive.sh && \
-    sed -i 's/\r$//' /app/entrypoint.sh /app/mysql/backup.sh /app/media/cleanup.sh /app/sync-to-e-drive.sh
+RUN chmod +x /app/entrypoint.sh /app/mysql/backup.sh /app/media/cleanup.sh /app/sync-to-e-drive.sh /app/init-mysql-permissions.sh /app/check-e-drive-mount.sh && \
+    sed -i 's/\r$//' /app/entrypoint.sh /app/mysql/backup.sh /app/media/cleanup.sh /app/sync-to-e-drive.sh /app/init-mysql-permissions.sh /app/check-e-drive-mount.sh
 
 VOLUME ["/backup", "/data"]
 

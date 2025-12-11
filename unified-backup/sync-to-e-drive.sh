@@ -18,13 +18,28 @@ E_DRIVE_MEDIA_DIR="$E_DRIVE_BACKUP_DIR/media"
 
 # 本地备份目录
 LOCAL_MYSQL_DIR="/data/mysql"
-LOCAL_MEDIA_DIR="/data"
+# 媒体备份：直接同步源媒体文件（backend_media 卷，在容器中挂载为 /backup）
+# 这是最原始、最完整的数据，不依赖 export_browse.py 是否成功
+LOCAL_MEDIA_DIR="${BROWSE_SOURCE_ROOT:-/backup}"
 
 log "=========================================="
 log "E盘同步任务开始"
 log "=========================================="
 log "同步策略: Docker卷只保存当天数据，E盘作为主要长期存储"
 
+log "=========================================="
+log "备份文件保存位置说明"
+log "=========================================="
+log "📁 MySQL备份文件:"
+log "   Docker卷（临时）: $LOCAL_MYSQL_DIR"
+log "   E盘（长期存储）: $E_DRIVE_MYSQL_DIR"
+log "   Windows路径: E:\\keling-backup\\mysql"
+log ""
+log "📁 媒体备份文件:"
+log "   Docker卷（临时）: $LOCAL_MEDIA_DIR"
+log "   E盘（长期存储）: $E_DRIVE_MEDIA_DIR"
+log "   Windows路径: E:\\keling-backup\\media"
+log "=========================================="
 log "路径配置:"
 log "  E盘挂载点: $E_DRIVE_MOUNT"
 log "  E盘MySQL目录: $E_DRIVE_MYSQL_DIR"
@@ -108,25 +123,20 @@ else
 fi
 fi
 
-# 检查本地媒体备份目录
+######## 媒体目录检查：直接同步源媒体文件（backend_media 卷） ########
+# 检查本地媒体备份目录（源媒体文件，挂载在 /backup）
 if [ ! -d "$LOCAL_MEDIA_DIR" ]; then
     log "⚠️  警告: 本地媒体备份目录不存在: $LOCAL_MEDIA_DIR"
 else
     log "✅ 本地媒体备份目录存在: $LOCAL_MEDIA_DIR"
-    MEDIA_FILE_COUNT=$(ls -1 "$LOCAL_MEDIA_DIR"/*.tar.gz "$LOCAL_MEDIA_DIR"/*.sql 2>/dev/null | wc -l || echo "0")
-    MEDIA_TOTAL_SIZE=0
+    MEDIA_FILE_COUNT=$(find "$LOCAL_MEDIA_DIR" -type f 2>/dev/null | wc -l || echo "0")
     if [ "$MEDIA_FILE_COUNT" -gt 0 ]; then
-        log "  发现 $MEDIA_FILE_COUNT 个媒体备份文件:"
-        for file in "$LOCAL_MEDIA_DIR"/*.tar.gz "$LOCAL_MEDIA_DIR"/*.sql; do
-            if [ -f "$file" ]; then
-                file_size=$(stat -c%s "$file" 2>/dev/null || wc -c < "$file")
-                MEDIA_TOTAL_SIZE=$((MEDIA_TOTAL_SIZE + file_size))
-                log "    - $(basename "$file") ($(numfmt --to=iec-i --suffix=B $file_size 2>/dev/null || echo "${file_size} 字节"))"
-fi
-        done
-        log "  总大小: $(numfmt --to=iec-i --suffix=B $MEDIA_TOTAL_SIZE 2>/dev/null || echo "${MEDIA_TOTAL_SIZE} 字节")"
+        # 统计整个目录的总大小
+        MEDIA_TOTAL_SIZE_BYTES=$(du -sb "$LOCAL_MEDIA_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
+        log "  发现 $MEDIA_FILE_COUNT 个媒体文件 (目录树):"
+        log "  源目录总大小: $(numfmt --to=iec-i --suffix=B $MEDIA_TOTAL_SIZE_BYTES 2>/dev/null || echo "${MEDIA_TOTAL_SIZE_BYTES} 字节")"
     else
-        log "  ℹ️  无备份文件需要同步"
+        log "  ℹ️  媒体目录中没有任何文件"
     fi
 fi
 
@@ -219,67 +229,38 @@ media_skipped=0
 media_failed=0
 
 if [ -d "$LOCAL_MEDIA_DIR" ]; then
-    media_file_list=$(ls -1 "$LOCAL_MEDIA_DIR"/*.tar.gz "$LOCAL_MEDIA_DIR"/*.sql 2>/dev/null || echo "")
-    if [ -z "$media_file_list" ]; then
+    MEDIA_FILE_COUNT=$(find "$LOCAL_MEDIA_DIR" -type f 2>/dev/null | wc -l || echo "0")
+    if [ "$MEDIA_FILE_COUNT" -eq 0 ]; then
         log "ℹ️  本地媒体目录中没有备份文件需要同步"
     else
-    for file in "$LOCAL_MEDIA_DIR"/*.tar.gz "$LOCAL_MEDIA_DIR"/*.sql; do
-        if [ -f "$file" ]; then
-            filename=$(basename "$file")
-            e_drive_file="$E_DRIVE_MEDIA_DIR/$filename"
-                local_size=$(stat -c%s "$file" 2>/dev/null || wc -c < "$file")
-            
-            # 如果E盘文件不存在或本地文件更新，则复制
-            if [ ! -f "$e_drive_file" ] || [ "$file" -nt "$e_drive_file" ]; then
-                log "开始复制媒体备份: $filename"
-                    log "  源文件大小: $(numfmt --to=iec-i --suffix=B $local_size 2>/dev/null || echo "${local_size} 字节")"
-                
-                # 检查源文件是否存在且可读
-                if [ ! -r "$file" ]; then
-                        log "  ❌ 错误: 源文件不可读: $file"
-                        media_failed=$((media_failed + 1))
-                    continue
-                fi
-                
-                # 执行复制操作
-                    COPY_START=$(date +%s)
-                if cp "$file" "$e_drive_file"; then
-                        COPY_END=$(date +%s)
-                        COPY_DURATION=$((COPY_END - COPY_START))
-                        
-                    # 验证复制是否成功
-                    if [ -f "$e_drive_file" ] && [ -s "$e_drive_file" ]; then
-                        remote_size=$(stat -c%s "$e_drive_file" 2>/dev/null || wc -c < "$e_drive_file")
-                        if [ "$local_size" = "$remote_size" ]; then
-                                log "  ✅ 复制成功"
-                                log "    目标文件大小: $(numfmt --to=iec-i --suffix=B $remote_size 2>/dev/null || echo "${remote_size} 字节")"
-                                log "    复制耗时: ${COPY_DURATION} 秒"
-                            media_synced=$((media_synced + 1))
-                        else
-                                log "  ❌ 错误: 文件大小不匹配"
-                                log "    本地大小: $local_size 字节"
-                                log "    远程大小: $remote_size 字节"
-                                log "    差异: $((local_size - remote_size)) 字节"
-                            rm -f "$e_drive_file" || true
-                                media_failed=$((media_failed + 1))
-                            fi
-                        else
-                            log "  ❌ 错误: 复制后目标文件不存在或为空"
-                            media_failed=$((media_failed + 1))
-                        fi
-                    else
-                        log "  ❌ 错误: 复制操作失败"
-                        log "    可能原因: E盘空间不足或权限不足"
-                        media_failed=$((media_failed + 1))
-                    fi
-                else
-                    log "  ⏭️  跳过: $filename (E盘已存在且为最新版本)"
-                    media_skipped=$((media_skipped + 1))
-                fi
-            fi
-        done
-                fi
-            else
+        log "开始同步媒体目录树到E盘..."
+        log "  源目录: $LOCAL_MEDIA_DIR"
+        log "  目标目录: $E_DRIVE_MEDIA_DIR"
+
+        COPY_START=$(date +%s)
+        # 使用 cp -a 保持目录结构和时间戳；如果 -a 不支持，可回退到 -rp
+        if cp -a "$LOCAL_MEDIA_DIR"/. "$E_DRIVE_MEDIA_DIR"/ 2>/dev/null || cp -rp "$LOCAL_MEDIA_DIR"/. "$E_DRIVE_MEDIA_DIR"/; then
+            COPY_END=$(date +%s)
+            COPY_DURATION=$((COPY_END - COPY_START))
+
+            media_synced=$MEDIA_FILE_COUNT
+
+            # 再次统计目标目录的文件数量与总大小
+            DEST_FILE_COUNT=$(find "$E_DRIVE_MEDIA_DIR" -type f 2>/dev/null | wc -l || echo "0")
+            DEST_TOTAL_SIZE_BYTES=$(du -sb "$E_DRIVE_MEDIA_DIR" 2>/dev/null | awk '{print $1}' || echo "0")
+
+            log "  ✅ 媒体目录同步完成"
+            log "  源文件数: $MEDIA_FILE_COUNT"
+            log "  目标文件数: $DEST_FILE_COUNT"
+            log "  目标总大小: $(numfmt --to=iec-i --suffix=B $DEST_TOTAL_SIZE_BYTES 2>/dev/null || echo "${DEST_TOTAL_SIZE_BYTES} 字节")"
+            log "  复制耗时: ${COPY_DURATION} 秒"
+        else
+            log "  ❌ 错误: 媒体目录复制失败"
+            log "    可能原因: E盘空间不足或权限不足"
+            media_failed=$MEDIA_FILE_COUNT
+        fi
+    fi
+else
     log "⚠️  警告: 本地媒体备份目录不存在，跳过媒体同步"
 fi
 
