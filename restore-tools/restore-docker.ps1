@@ -37,7 +37,7 @@ $backupFiles = @()
 # 1. 检查容器内的备份目录
 if ($backupContainerExists) {
     Write-Host "  检查容器内备份目录..." -ForegroundColor Cyan
-    $containerBackups = docker exec $BackupContainer sh -c "find /data/mysql /mnt/e-drive/keling-backup/mysql -name '*.sql.gz' -o -name '*.sql' 2>/dev/null | head -20" 2>&1
+    $containerBackups = docker exec $BackupContainer sh -c "find /data/mysql /mnt/e-drive/mysql -name '*.sql.gz' -o -name '*.sql' 2>/dev/null | head -20" 2>&1
     if ($containerBackups -and $containerBackups -notmatch "Error|No such file") {
         $containerBackups -split "`n" | Where-Object { $_ -and $_ -notmatch "Error|No such file" } | ForEach-Object {
             $backupFiles += @{
@@ -88,7 +88,7 @@ if ($ListBackups -or (-not $BackupFile)) {
     if ($backupFiles.Count -eq 0) {
         Write-Host "  没有找到备份文件！" -ForegroundColor Red
         Write-Host "`n请检查以下位置:" -ForegroundColor Yellow
-        Write-Host "  1. 容器内: /data/mysql 或 /mnt/e-drive/keling-backup/mysql" -ForegroundColor Cyan
+        Write-Host "  1. 容器内: /data/mysql 或 /mnt/e-drive/mysql" -ForegroundColor Cyan
         Write-Host "  2. 本地E盘: E:\keling-backup\mysql" -ForegroundColor Cyan
         Write-Host "  3. 或者使用 -BackupFile 参数指定备份文件路径" -ForegroundColor Cyan
         exit 1
@@ -96,7 +96,8 @@ if ($ListBackups -or (-not $BackupFile)) {
     
     $index = 1
     foreach ($backup in $backupFiles) {
-        $sizeInfo = if ($backup.Size) { " ($([math]::Round($backup.Size/1MB, 2)) MB)" } else { "" }
+        $sizeMB = if ($backup.Size) { [math]::Round($backup.Size / 1MB, 2) } else { 0 }
+        $sizeInfo = if ($sizeMB -gt 0) { " ($sizeMB MB)" } else { "" }
         $dateInfo = if ($backup.Date) { " - $($backup.Date.ToString('yyyy-MM-dd HH:mm'))" } else { "" }
         Write-Host "  [$index] $($backup.Path)$sizeInfo$dateInfo [$($backup.Source)]" -ForegroundColor Cyan
         $index++
@@ -212,12 +213,19 @@ try {
     # 清理本地临时文件
     Remove-Item $tempFile -ErrorAction SilentlyContinue
     
-    if ($LASTEXITCODE -eq 0) {
+    # 检查恢复是否成功（MySQL 恢复命令的退出码可能不准确，需要检查输出）
+    $restoreSuccess = $true
+    if ($restoreResult -match "ERROR|error|Error") {
+        $restoreSuccess = $false
+    }
+    
+    if ($restoreSuccess -and $LASTEXITCODE -eq 0) {
         Write-Host "`n数据库恢复完成！" -ForegroundColor Green
         
         # 验证恢复结果
         Write-Host "`n验证恢复结果..." -ForegroundColor Yellow
-        $tableCount = docker exec $ContainerName mysql -u$DbUser -p$DbPass $DbName -e "SHOW TABLES;" 2>&1 | Select-String -Pattern "^\w" | Measure-Object | Select-Object -ExpandProperty Count
+        $tableOutput = docker exec $ContainerName mysql -u$DbUser -p$DbPass $DbName -e "SHOW TABLES;" 2>&1
+        $tableCount = ($tableOutput | Select-String -Pattern "^\w" | Measure-Object).Count
         Write-Host "  恢复的表数量: $tableCount" -ForegroundColor Cyan
         
         if ($tableCount -gt 0) {
@@ -226,7 +234,9 @@ try {
             Write-Host "`n警告: 未检测到表，请手动检查数据库" -ForegroundColor Yellow
         }
     } else {
-        throw "恢复失败: $restoreResult"
+        Write-Host "`n恢复过程中出现错误:" -ForegroundColor Red
+        Write-Host $restoreResult -ForegroundColor Yellow
+        throw "恢复失败"
     }
     
 } catch {

@@ -16,11 +16,10 @@ keling-admin-mysql/
 │   ├── export_browse.py         # 可浏览副本导出
 │   └── sync-to-e-drive.sh       # E盘同步脚本
 ├── restore-tools/                # 数据恢复工具
-│   ├── restore.sh               # Linux/macOS 恢复脚本
-│   ├── restore.bat              # Windows 批处理恢复脚本
-│   ├── restore.ps1              # PowerShell 恢复脚本
 │   ├── restore-docker.ps1       # Docker 环境恢复脚本（推荐）
-│   └── README.md                # 恢复工具说明
+│   ├── README.md                # 恢复工具说明
+│   ├── QUICK_START.md           # 快速开始指南
+│   └── RESTORE.md               # 详细恢复文档
 ├── my.cnf                       # MySQL 配置文件
 └── skip-name-resolve.cnf        # MySQL DNS 解析配置
 ```
@@ -91,15 +90,21 @@ cd restore-tools
 
 ```bash
 cd restore-tools
-chmod +x restore.sh
-./restore.sh
+# 需要安装 PowerShell Core: brew install powershell
+pwsh restore-docker.ps1
 ```
 
-#### Windows (批处理)
+#### 使用示例
 
-```cmd
-cd restore-tools
-restore.bat
+```powershell
+# 交互式恢复（推荐）
+.\restore-docker.ps1
+
+# 指定备份文件
+.\restore-docker.ps1 -BackupFile "E:\keling-backup\mysql\2025-01-15_0000.sql"
+
+# 仅列出可用备份文件
+.\restore-docker.ps1 -ListBackups
 ```
 
 ### 查看备份文件
@@ -121,7 +126,7 @@ docker exec keling-unified-backup ls -la /data/mysql/
 dir E:\keling-backup\mysql\
 
 # 容器内路径
-docker exec keling-unified-backup ls -la /mnt/e-drive/keling-backup/mysql/
+docker exec keling-unified-backup ls -la /mnt/e-drive/mysql/
 ```
 
 **保留策略:**
@@ -142,7 +147,7 @@ docker exec keling-unified-backup ls -la /data/
 dir E:\keling-backup\media\
 
 # 容器内路径
-docker exec keling-unified-backup ls -la /mnt/e-drive/keling-backup/media/
+docker exec keling-unified-backup ls -la /mnt/e-drive/media/
 ```
 
 ## ⚙️ 配置说明
@@ -184,7 +189,7 @@ cat .env.docker
 
 2. **E盘（长期存储）**
    - Windows路径: `E:\keling-backup\mysql\`
-   - 容器内路径: `/mnt/e-drive/keling-backup/mysql`
+   - 容器内路径: `/mnt/e-drive/mysql`
    - 保留策略:
      - 删除12:00备份（只保留00:00备份）
      - 最近一个月：保留所有00:00备份
@@ -197,7 +202,7 @@ cat .env.docker
 
 2. **E盘（长期存储）**
    - Windows路径: `E:\keling-backup\media\`
-   - 容器内路径: `/mnt/e-drive/keling-backup/media`
+   - 容器内路径: `/mnt/e-drive/media`
 
 ## 🛠️ 故障排除
 
@@ -221,7 +226,7 @@ docker-compose exec unified-backup cat /var/log/media-backup.log
 
 ```bash
 # 检查E盘挂载
-docker exec keling-unified-backup ls -la /mnt/e-drive/keling-backup/mysql/
+docker exec keling-unified-backup ls -la /mnt/e-drive/mysql/
 
 # 检查容器内备份
 docker exec keling-unified-backup ls -la /data/mysql/

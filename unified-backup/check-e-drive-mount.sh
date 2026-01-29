@@ -7,7 +7,7 @@ set -euo pipefail
 log(){ printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 
 E_DRIVE_MOUNT="/mnt/e-drive"
-E_DRIVE_BACKUP_DIR="$E_DRIVE_MOUNT/keling-backup"
+E_DRIVE_BACKUP_DIR="$E_DRIVE_MOUNT"
 E_DRIVE_MYSQL_DIR="$E_DRIVE_BACKUP_DIR/mysql"
 
 log "=========================================="

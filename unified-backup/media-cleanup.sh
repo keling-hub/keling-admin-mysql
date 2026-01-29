@@ -40,7 +40,8 @@ else
 fi
 
 CURRENT_DATE=$(date +%Y-%m-%d)
-FOURTEEN_DAYS_AGO=$(date -d "14 days ago" +%Y-%m-%d 2>/dev/null || date -v-14d +%Y-%m-%d 2>/dev/null || date -j -v-14d +%Y-%m-%d 2>/dev/null || date -d@$(($(date +%s) - 14*24*60*60)) +%Y-%m-%d 2>/dev/null)
+# 使用时间戳计算，兼容性更好（14天前）
+FOURTEEN_DAYS_AGO=$(date -d@$(($(date +%s) - 14*24*60*60)) +%Y-%m-%d 2>/dev/null || date -d "14 days ago" +%Y-%m-%d 2>/dev/null || date -v-14d +%Y-%m-%d 2>/dev/null || echo "")
 
 log "日期信息:"
 log "  当前日期: $CURRENT_DATE"
@@ -54,30 +55,38 @@ KEPT_COUNT=0
 DELETED_COUNT=0
 
 if [ -n "$SNAPSHOTS" ]; then
-echo "$SNAPSHOTS" | while IFS=' ' read -r snapshot_time snapshot_id; do
+    # 使用临时文件避免子shell问题，确保变量能正确累加
+    TMP_SNAPSHOTS=$(mktemp /tmp/snapshots.XXXXXX 2>/dev/null || echo "/tmp/snapshots.$$")
+    echo "$SNAPSHOTS" > "$TMP_SNAPSHOTS"
+    
+    while IFS=' ' read -r snapshot_time snapshot_id; do
         if [ -z "$snapshot_time" ] || [ -z "$snapshot_id" ]; then
             continue
         fi
         
-  snapshot_date=$(echo "$snapshot_time" | cut -d'T' -f1)
-  snapshot_day=$(echo "$snapshot_date" | cut -d'-' -f3)
+        snapshot_date=$(echo "$snapshot_time" | cut -d'T' -f1)
+        snapshot_day=$(echo "$snapshot_date" | cut -d'-' -f3)
 
-  keep=false
+        keep=false
         reason=""
         
-  if [ "$snapshot_date" \> "$FOURTEEN_DAYS_AGO" ] || [ "$snapshot_date" = "$FOURTEEN_DAYS_AGO" ]; then
+        # 使用时间戳比较日期（更可靠）
+        snapshot_timestamp=$(date -d "$snapshot_date" +%s 2>/dev/null || echo "0")
+        fourteen_days_ago_timestamp=$(date -d "$FOURTEEN_DAYS_AGO" +%s 2>/dev/null || echo "0")
+        
+        if [ "$snapshot_timestamp" -ge "$fourteen_days_ago_timestamp" ] && [ "$snapshot_timestamp" -gt 0 ] && [ "$fourteen_days_ago_timestamp" -gt 0 ]; then
             keep=true
             reason="最近14天内"
             log "  ✅ 保留备份: $snapshot_date (ID: ${snapshot_id:0:8}...) - $reason"
             KEPT_COUNT=$((KEPT_COUNT + 1))
-  fi
-  if [ "$snapshot_day" = "01" ]; then
+        fi
+        if [ "$snapshot_day" = "01" ]; then
             keep=true
             reason="月初1号备份"
             log "  ✅ 保留备份: $snapshot_date (ID: ${snapshot_id:0:8}...) - $reason"
             KEPT_COUNT=$((KEPT_COUNT + 1))
-  fi
-  if [ "$keep" = false ]; then
+        fi
+        if [ "$keep" = false ]; then
             log "  🗑️  删除过期备份: $snapshot_date (ID: ${snapshot_id:0:8}...) - 超过14天且非月初"
             if restic -r "$RESTIC_REPOSITORY" forget "$snapshot_id" --prune >/dev/null 2>&1; then
                 log "    ✅ 删除成功"
@@ -85,8 +94,11 @@ echo "$SNAPSHOTS" | while IFS=' ' read -r snapshot_time snapshot_id; do
             else
                 log "    ⚠️  删除失败，继续处理下一个"
             fi
-  fi
-done
+        fi
+    done < "$TMP_SNAPSHOTS"
+    
+    # 清理临时文件
+    rm -f "$TMP_SNAPSHOTS" 2>/dev/null || true
 else
     log "  ℹ️  没有备份快照需要处理"
 fi

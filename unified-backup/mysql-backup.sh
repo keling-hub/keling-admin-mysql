@@ -35,7 +35,7 @@ log "   文件格式: YYYY-MM-DD_HHMM.sql"
 log "   示例: 2025-11-08_0000.sql, 2025-11-08_1200.sql"
 log ""
 log "📁 E盘（长期存储，自动同步）:"
-log "   容器内路径: /mnt/e-drive/keling-backup/mysql"
+log "   容器内路径: /mnt/e-drive/mysql"
 log "   Windows路径: E:\\keling-backup\\mysql"
 log "   保留策略:"
 log "     - 删除12:00备份（只保留00:00备份）"
@@ -150,7 +150,7 @@ if mysqldump -h"$DB_HOST" -P"$DB_PORT" -u"$DB_USER" -p"$DB_PASS" \
         log ""
         log "📂 文件保存位置:"
         log "   Docker卷: $FILE"
-        log "   E盘（将自动同步）: /mnt/e-drive/keling-backup/mysql/$(basename "$FILE")"
+        log "   E盘（将自动同步）: /mnt/e-drive/mysql/$(basename "$FILE")"
         log "   Windows路径: E:\\keling-backup\\mysql\\$(basename "$FILE")"
 else
         log "❌ 错误: 移动临时文件失败"
@@ -214,7 +214,19 @@ log "  删除文件: $DELETED_FILES"
 # 00:00 时清理前一日 12:00 的备份（如果还在当天）
 if [ "$HM" = "0000" ]; then
   log "检测到00:00备份时间，清理前一日12:00备份..."
-  YDAY=$(date -d yesterday +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d 2>/dev/null || echo "")
+  # 使用时间戳计算，兼容性更好
+  YDAY=$(date -d@$(($(date +%s) - 24*60*60)) +%Y-%m-%d 2>/dev/null || echo "")
+  if [ -z "$YDAY" ]; then
+    # 如果时间戳方法失败，尝试从当前日期计算
+    CURRENT_DAY=$(date +%d)
+    if [ "$CURRENT_DAY" -eq "01" ]; then
+      # 如果是1号，需要计算上个月的最后一天（简化处理：使用当前日期减1天）
+      YDAY=$(date +%Y-%m-%d -d "1 day ago" 2>/dev/null || date -v-1d +%Y-%m-%d 2>/dev/null || echo "")
+    else
+      # 其他情况，直接减1天
+      YDAY=$(date +%Y-%m-%d -d "1 day ago" 2>/dev/null || date -v-1d +%Y-%m-%d 2>/dev/null || echo "")
+    fi
+  fi
   if [ -n "$YDAY" ]; then
     NOON="${MYSQL_BACKUP_DIR}/${YDAY}_1200.sql"
     if [ -f "$NOON" ]; then
@@ -224,6 +236,8 @@ if [ "$HM" = "0000" ]; then
     else
       log "  ✅ 昨日12:00备份不存在，无需清理"
     fi
+  else
+    log "  ⚠️  警告: 无法计算昨日日期，跳过清理"
   fi
 fi
 

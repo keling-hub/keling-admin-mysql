@@ -12,7 +12,7 @@ log(){ printf '[%s] %s\n' "$(date '+%F %T')" "$*"; }
 
 # 检查E盘是否可用（通过挂载点检查）
 E_DRIVE_MOUNT="/mnt/e-drive"
-E_DRIVE_BACKUP_DIR="$E_DRIVE_MOUNT/keling-backup"
+E_DRIVE_BACKUP_DIR="$E_DRIVE_MOUNT"
 E_DRIVE_MYSQL_DIR="$E_DRIVE_BACKUP_DIR/mysql"
 E_DRIVE_MEDIA_DIR="$E_DRIVE_BACKUP_DIR/media"
 
@@ -299,7 +299,8 @@ if [ "$current_hour" = "00" ]; then
     log "  2. 最近一个月：保留所有00:00备份"
     log "  3. 超过一个月：只保留每月1号00:00备份"
     
-    one_month_ago=$(date -d "1 month ago" +%Y-%m-%d 2>/dev/null || date -v-1m +%Y-%m-%d 2>/dev/null || date -j -v-1m +%Y-%m-%d 2>/dev/null || date -d@$(($(date +%s) - 30*24*60*60)) +%Y-%m-%d 2>/dev/null)
+    # 使用时间戳计算，兼容性更好（30天前）
+    one_month_ago=$(date -d@$(($(date +%s) - 30*24*60*60)) +%Y-%m-%d 2>/dev/null || date -d "1 month ago" +%Y-%m-%d 2>/dev/null || date -v-1m +%Y-%m-%d 2>/dev/null || echo "")
     
     log "日期范围:"
     log "  当前日期: $current_date"
@@ -319,16 +320,28 @@ if [ "$current_hour" = "00" ]; then
         for file in "$E_DRIVE_MYSQL_DIR"/*.sql; do
             if [ -f "$file" ]; then
                 filename=$(basename "$file")
-                file_date=$(date -r "$file" +%Y-%m-%d 2>/dev/null || date -r "$file" +%Y-%m-%d 2>/dev/null || echo "")
+                # 从文件名提取日期（更可靠）：格式为 YYYY-MM-DD_HHMM.sql
+                file_date=$(echo "$filename" | cut -d'_' -f1)
                 file_size=$(stat -c%s "$file" 2>/dev/null || wc -c < "$file")
                 should_delete=false
                 reason=""
                 
+                # 验证日期格式是否正确
+                if ! echo "$file_date" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}$'; then
+                    log "  ⚠️  警告: 无法从文件名提取日期: $filename，跳过"
+                    continue
+                fi
+                
                 # 规则1: 删除前一天的12:00备份（只保留00:00备份）
                 if echo "$filename" | grep -q "_1200\.sql$"; then
                     # 检查是否是前一天的12:00备份
-                    yesterday=$(date -d yesterday +%Y-%m-%d 2>/dev/null || date -v-1d +%Y-%m-%d 2>/dev/null || echo "")
-                    if [ -n "$yesterday" ] && echo "$filename" | grep -q "^${yesterday}_1200\.sql$"; then
+                    # 使用时间戳计算昨日日期
+                    yesterday=$(date -d@$(($(date +%s) - 24*60*60)) +%Y-%m-%d 2>/dev/null || echo "")
+                    if [ -z "$yesterday" ]; then
+                        # 备用方法
+                        yesterday=$(date +%Y-%m-%d -d "1 day ago" 2>/dev/null || date -v-1d +%Y-%m-%d 2>/dev/null || echo "")
+                    fi
+                    if [ -n "$yesterday" ] && [ "$file_date" = "$yesterday" ]; then
                         should_delete=true
                         reason="前一天12:00备份"
                     else
@@ -336,18 +349,24 @@ if [ "$current_hour" = "00" ]; then
                         reason="当天12:00备份，保留"
                     fi
                 # 规则2: 最近一个月保留所有00:00备份
-                elif [ "$file_date" \> "$one_month_ago" ] || [ "$file_date" = "$one_month_ago" ]; then
-                    should_delete=false
-                    reason="最近一个月内"
-                # 规则3: 超过一个月只保留1号00:00备份
                 else
-                    day_of_month=$(date -r "$file" +%d 2>/dev/null || date -r "$file" +%d 2>/dev/null || echo "")
-                    if [ "$day_of_month" = "01" ]; then
+                    # 使用时间戳比较日期（更可靠）
+                    file_timestamp=$(date -d "$file_date" +%s 2>/dev/null || echo "0")
+                    one_month_ago_timestamp=$(date -d "$one_month_ago" +%s 2>/dev/null || echo "0")
+                    if [ "$file_timestamp" -ge "$one_month_ago_timestamp" ] && [ "$file_timestamp" -gt 0 ] && [ "$one_month_ago_timestamp" -gt 0 ]; then
                         should_delete=false
-                        reason="月初1号"
+                        reason="最近一个月内"
+                    # 规则3: 超过一个月只保留1号00:00备份
                     else
-                        should_delete=true
-                        reason="超过一个月且非1号"
+                        # 从文件名日期中提取日期部分（格式：YYYY-MM-DD）
+                        day_of_month=$(echo "$file_date" | cut -d'-' -f3)
+                        if [ "$day_of_month" = "01" ]; then
+                            should_delete=false
+                            reason="月初1号"
+                        else
+                            should_delete=true
+                            reason="超过一个月且非1号"
+                        fi
                     fi
                 fi
                 
